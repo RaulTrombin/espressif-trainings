@@ -29,7 +29,7 @@ Several tools are required:
 ✅ Install them with the following command:
 
 ```console
-$ cargo install cargo-espflash ldproxy
+$ cargo install cargo-espflash cargo-espmonitor ldproxy
 ```
 
 ## Toolchain dependencies
