@@ -18,8 +18,43 @@ on:
     - cron: "50 7 * * *"
 
 jobs:
+  build-image:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        if: github.event_name != 'schedule'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        if: github.event_name != 'schedule'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          tags: espressif/rust-std-training:latest
+          file: .devcontainer/Dockerfile
+          push: false
+          outputs: type=docker,dest=${{ runner.temp }}/image.tar
+
+      - name: Pull Docker image
+        if: github.event_name == 'schedule'
+        run: |
+          docker image pull espressif/rust-std-training:latest
+          docker image save espressif/rust-std-training:latest -o ${{ runner.temp }}/image.tar
+
+      - name: Upload Docker image
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: ${{ runner.temp }}/image.tar
+          retention-days: 1
+
   build-examples:
     name: Build ${{ matrix.project.name }}
+    needs: build-image
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -49,18 +84,14 @@ jobs:
         run: |
           sudo chown 1000:1000 -R ${{ github.workspace }}
 
-      - name: Build Docker image
-        if: github.event_name != 'schedule'
-        uses: docker/build-push-action@v7
+      - name: Download Docker image
+        uses: actions/download-artifact@v4
         with:
-          context: .
-          tags: espressif/rust-std-training
-          file: .devcontainer/Dockerfile
-          push: false
+          name: docker-image
+          path: ${{ runner.temp }}
 
-      - name: Pull Docker image
-        if: github.event_name == 'schedule'
-        run: docker image pull espressif/rust-std-training
+      - name: Load Docker image
+        run: docker image load -i ${{ runner.temp }}/image.tar
 
       - name: Test code example in Docker image
         uses: addnab/docker-run-action@v3
